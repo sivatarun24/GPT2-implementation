@@ -93,6 +93,19 @@ class GPT(nn.Module):
         ))
         self.lm_head = nn.Linear(config.n_embd, config.n_vocab, bias=False)
 
+    def forward(self, idx):
+        B, T = idx.shape()
+        assert T <= self.config.n_block
+        pos = torch(0, T, dtype=torch.long, device=idx.device)
+        pos_emb = self.transformer.wpe(pos)
+        tok_emb = self.transformer.wte(idx)
+        x = tok_emb + pos_emb
+        for block in self.transformer.h:
+            x = block(x)
+        x = self.transformer.ln_f(x)
+        logits = self.lm_head(x)
+        return logits
+
     @classmethod
     def from_pretrained(cls, model_type):
         # n_vocab, n_block, n_embd, n_head, n_layer
