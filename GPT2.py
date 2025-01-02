@@ -1,8 +1,10 @@
+import tiktoken
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from dataclasses import dataclass
 import math
+import tiktoken
 
 
 @dataclass
@@ -161,3 +163,20 @@ print(GPT(GPTConfig))
 model = GPT.from_pretrained('gpt2')
 print("Didn't crash yay")
 # model.to_device()
+
+model.eval()
+model.to('cpu')
+
+print()
+
+max_return_sequences = 5
+max_length = 30
+starting_text = "Hello, I'm a language model,"
+
+enc = tiktoken.get_encoding("gpt2")
+tokens = enc.encode(starting_text)
+tokens = torch.tensor(tokens, dtype=torch.long)
+tokens = tokens.unsqueeze(0).repeat(max_return_sequences, 1)
+x = tokens.to('cpu')
+
+print(x)
