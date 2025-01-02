@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from dataclasses import dataclass
 import math
-import tiktoken
+from transformers import GPT2LMHeadModel
 
 
 @dataclass
@@ -29,7 +29,6 @@ class CasualSelfAttention(nn.Module):
             config.n_block, config.n_block)).view(1, 1, config.n_block, config.n_block))
 
     def forward(self, x):
-        # important
         B, T, C = x.size()  # Batch size, sequence length, embedding dimensionality(n_embd)
         qkv = self.c_attn(x)
         # split qkv into q, k, v
@@ -43,10 +42,10 @@ class CasualSelfAttention(nn.Module):
                    self.n_head). transpose(1, 2)  # (B, nh, T, hs)
 
         att = (q @ k.transpose(-2, -1)) * \
-            (1.0 / math.sqrt(k.size - 1))  # calculate attn
+            (1.0 / math.sqrt(k.size(-1)))  # calculate attn
         att = att.masked_fill(
-            self.bias[:, :, :T, :T] == 0, float('inf'))  # mask attn
-        y = F.softmax(att, dim=-1)  # calculate softmax
+            self.bias[:, :, :T, :T] == 0, float('-inf'))  # mask attn
+        att = F.softmax(att, dim=-1)  # calculate softmax
         y = att @ v
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.c_proj(y)
@@ -58,6 +57,7 @@ class MLP(nn.Module):
         super().__init__()
         self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd)
         self.gelu = nn.GELU(approximate="tanh")
+        # self.gelu = NewGELU()
         self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd)
 
     def forward(self, x):
@@ -70,16 +70,15 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(self, config):
         super().__init__()
-
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CasualSelfAttention(config)  # c_attn, c_proj
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)  # c_fn, c_proj
 
-        def forward(self, x):
-            x = x + self.attn(self.ln_1(x))
-            x = x + self.mlp(self.ln_2(x))
-            return x
+    def forward(self, x):
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.mlp(self.ln_2(x))
+        return x
 
 
 class GPT(nn.Module):
@@ -96,9 +95,9 @@ class GPT(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.n_vocab, bias=False)
 
     def forward(self, idx):
-        B, T = idx.shape()
+        B, T = idx.size()
         assert T <= self.config.n_block
-        pos = torch(0, T, dtype=torch.long, device=idx.device)
+        pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
         pos_emb = self.transformer.wpe(pos)
         tok_emb = self.transformer.wte(idx)
         x = tok_emb + pos_emb
@@ -159,10 +158,9 @@ class GPT(nn.Module):
         return model
 
 
-print(GPT(GPTConfig))
+# print(GPT(GPTConfig))
 model = GPT.from_pretrained('gpt2')
 print("Didn't crash yay")
-# model.to_device()
 
 model.eval()
 model.to('cpu')
@@ -191,3 +189,8 @@ while x.size(1) < max_length:
         ix = torch.multinomial(topk_probs, 1)
         xcol = torch.gather(topk_indices, -1, ix)
         x = torch.cat((x, xcol), dim=1)
+
+for i in range(max_return_sequences):
+    tokens = x[i, :max_length].tolist()
+    decoded = enc.decode(tokens)
+    print(decoded)
