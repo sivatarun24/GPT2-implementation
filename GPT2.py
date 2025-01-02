@@ -52,6 +52,11 @@ class CasualSelfAttention(nn.Module):
         return y
 
 
+class NewGELU(nn.Module):
+    def forward(self, input):
+        return 0.5 * input * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (input + 0.044715 * torch.pow(input, 3.0))))
+
+
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
