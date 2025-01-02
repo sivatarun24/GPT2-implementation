@@ -179,4 +179,15 @@ tokens = torch.tensor(tokens, dtype=torch.long)
 tokens = tokens.unsqueeze(0).repeat(max_return_sequences, 1)
 x = tokens.to('cpu')
 
-print(x)
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+
+while x.size(1) < max_length:
+    with torch.no_grad():  # no caching and makes fast
+        logits = model(x)
+        logits = logits[:, -1, :]  # last column
+        prob = F.softmax(logits, dim=-1)
+        topk_probs, topk_indices = torch.topk(prob, 50, dim=-1)
+        ix = torch.multinomial(topk_probs, 1)
+        xcol = torch.gather(topk_indices, -1, ix)
+        x = torch.cat((x, xcol), dim=1)
