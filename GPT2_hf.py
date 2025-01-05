@@ -33,4 +33,7 @@ while x.size(1) < max_length:
     xcol = torch.gather(topk_indices, 1, ix)
     x = torch.cat([x, xcol], dim=1)
 
-print("All Good")
+for i in range(max_return_sequences):
+    tokens = x[i, :max_length].tolist()
+    decoded = enc.decode(tokens)
+    print(decoded)
