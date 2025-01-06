@@ -94,3 +94,6 @@ x = Value(5.0)
 y = Value(2.0)
 z = x * y
 print(z)
+
+z.backward()
+print(y.grad)
